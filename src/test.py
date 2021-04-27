@@ -10,20 +10,33 @@ import json
 import re
 import numpy as np
 from tqdm import trange
+from trainer import train
+from adversary import Attacker
+from transforms import UnNormalize
 plt.close('all')
 project_folder = Path(__file__).parents[1]
 
 preproc = transforms.Compose([
-    transforms.Resize(224),
-    transforms.CenterCrop(224),
+    transforms.Resize(320),
     transforms.ToTensor(),
     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
-with Image.open(project_folder.joinpath('data/ambulance.jpg')) as img:
-    img_preproced = preproc(img)
+imgs_preproc = []
+for img_path in ["torstein.jpg", "emil.jpg", 'hammer.jpg']:
+    with Image.open(project_folder.joinpath(f"data/{img_path}")) as img:
+        img_preproced = preproc(img)
+        imgs_preproc.append(img_preproced)
+
+img_preproced = imgs_preproc[-1]
+
+
+def freeze(torchitem):
+    for param in torchitem.parameters():
+        param.requires_grad = False
 
 
 model = resnet50(pretrained=True)
+freeze(model)
 model.cuda()
 model.eval()
 with torch.no_grad():
@@ -37,65 +50,17 @@ with open(project_folder.joinpath('data/classes.txt')) as file:
 
 best = np.argsort(pred)[::-1]
 [classes[i] for i in best[0:5]]
-# pred[best[0:5]]
 
 
-def freeze(module):
-    for param in module.parameters():
-        param.requires_grad = False
-
-
-class UnNormalize(object):
-    def __init__(self, mean, std):
-        self.mean = mean
-        self.std = std
-
-    def __call__(self, tensor):
-        """
-        Args:
-            tensor (Tensor): Tensor image of size (C, H, W) to be normalized.
-        Returns:
-            Tensor: Normalized image.
-        """
-        for t, m, s in zip(tensor, self.mean, self.std):
-            t.mul_(s).add_(m)
-            # The normalize code -> t.sub_(m).div_(s)
-        return tensor
-
-
-class Adversary(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.resnet = resnet50(pretrained=True)
-        freeze(self.resnet)
-
-        self.noise = nn.Parameter(torch.zeros(3, 224, 224))
-
-    def __call__(self, x):
-        x_hacked = x + self.noise
-        y_hat = self.resnet(x_hacked)
-        return y_hat
-
-
-adversary = Adversary()
+adversary = Attacker(model)
 adversary.cuda()
 target = torch.zeros((1), dtype=torch.long)
-target[0] = 224
-loss_fn = nn.CrossEntropyLoss()
-optimizer = torch.optim.Adam(adversary.parameters(),
-                             lr=0.1, weight_decay=0)
+target[0] = 234
+optimizer = torch.optim.Adam([adversary.noise],
+                             lr=0.01, weight_decay=0)
 x = torch.unsqueeze(img_preproced, dim=0).cuda()
 y = target.cuda()
-top = torch.tensor([0.1]).cuda()
-bottom = torch.tensor([-0.1]).cuda()
-for i in trange(100):
-    optimizer.zero_grad()
-    output = adversary(x)
-    loss = loss_fn(output, y)
-    loss.backward()
-    optimizer.step()
-    adversary.noise.data = torch.minimum(adversary.noise, top)
-    adversary.noise.data = torch.maximum(adversary.noise, bottom)
+losses = train(adversary, optimizer, img_preproced, target)
 
 adversary.eval()
 with torch.no_grad():
@@ -103,8 +68,12 @@ with torch.no_grad():
     pred2 = torch.nn.functional.softmax(pred2.cpu(), dim=1).numpy().ravel()
     print(np.argmax(pred2))
     print(np.amax(pred2))
+    print(pred2[600])
 unorm = UnNormalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
 with torch.no_grad():
     new_x = unorm(x+adversary.noise)
     print(new_x.shape)
     plt.imshow(np.transpose(new_x.cpu()[0], (1, 2, 0)))
+fig, ax = plt.subplots()
+ax.plot(losses)
+plt.show()

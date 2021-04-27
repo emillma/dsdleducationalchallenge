@@ -7,8 +7,3 @@ class Attacker(nn.Module):
         super().__init__()
         self.victim_model = victim_model
         self.noise = nn.Parameter(torch.zeros(input_shape))
-
-    def __call__(self, x):
-        x_hacked = x + self.noise
-        y_hat = self.victim_model(x_hacked)
-        return y_hat
