@@ -43,7 +43,8 @@ with torch.no_grad():
     y = model(torch.unsqueeze(img_preproced, dim=0).cuda()).cpu()
     pred = torch.nn.functional.softmax(y, dim=1)
 pred = pred.numpy().ravel()
-
+print(np.argmax(pred))
+print(np.amax(pred))
 with open(project_folder.joinpath('data/classes.txt')) as file:
     classes = [line.strip() for line in file.readlines()[1:-1]]
     classes = [txt[txt.find(':')+3:-2] for txt in classes]

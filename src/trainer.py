@@ -4,11 +4,7 @@ from tqdm import trange
 
 
 def train(adversary, optimizer, img_preproced, target):
-    weights = torch.ones(1000)*1e-9
-    weights[234] = 1e6
-    weights[600] = 1e6
-    loss_fn = nn.CrossEntropyLoss(weights.cuda())
-
+    loss_fn = nn.CrossEntropyLoss()
     x = torch.unsqueeze(img_preproced, dim=0).cuda()
     y = target.cuda()
     losses = []
