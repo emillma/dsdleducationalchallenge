@@ -12,20 +12,29 @@ with Image.open("../data/hammer.jpg") as img:
 model = resnet50(pretrained=True).cuda().eval()
 
 attack = torch.zeros((3, 320, 320), requires_grad=True, device='cuda')
-alpha = 75
+alpha = 50
 
+attacks = []
+grads = []
 
-class Emil:
-    def __init__(self) -> None:
-        pass
-        self.foo = lambda x: x**2
+pred = torch.nn.functional.softmax(model(x), dim=1)
+dogs = []
+hammers = []
 
+target = torch.tensor([300], dtype=torch.long).cuda()
+criterion = torch.nn.CrossEntropyLoss()
+for i in range(100):
 
-for i in range(1000):
-    y = torch.nn.functional.softmax(model(x+attack), dim=1)
-    y[0, 300].backward()
+    y_hat = model(x+attack)
+    criterion(y_hat, target).backward()
 
-    attack.data += alpha*attack.grad
+    pred = torch.nn.functional.softmax(y_hat, dim=1)
+    attacks.append(attack.data.cpu())
+    dogs.append(pred[0, 300].item())
+    hammers.append(pred[0, 587].item())
+    grads.append(attack.grad.data.cpu())
+
+    attack.data -= alpha*attack.grad
     attack.data = torch.clamp(attack.data, -0.02, 0.02)
 
-print(y[0, 300])
+    print(torch.nn.functional.softmax(y_hat, dim=1)[0, 300])
