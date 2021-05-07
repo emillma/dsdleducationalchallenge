@@ -10,6 +10,10 @@ with Image.open("data/hammer.jpg") as img:
     image = torch.unsqueeze(preprocess(img), dim=0).cuda()
 
 model = resnet50(pretrained=True).cuda().eval()
+
+pred = torch.nn.functional.softmax(model(image), dim=1)
+print(f'Initial estimate: class={pred.argmax()}, certainty={pred.max()}')
+
 attack = torch.zeros(image.shape, requires_grad=True, device='cuda')
 
 costfunction = torch.nn.CrossEntropyLoss()
@@ -23,3 +27,7 @@ for i in range(500):
     d_cost_d_attack = attack.grad
     attack.data -= alpha * d_cost_d_attack
     attack.data = torch.clamp(attack.data, -0.02, 0.02)
+
+
+pred = torch.nn.functional.softmax(output, dim=1)
+print(f'Initial estimate: class={pred.argmax()}, certainty={pred.max()}')
