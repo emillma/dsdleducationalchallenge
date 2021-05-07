@@ -1,3 +1,5 @@
 videostuff/
 data/
 */__pycache__/
+*.pickle
+*.mp4
